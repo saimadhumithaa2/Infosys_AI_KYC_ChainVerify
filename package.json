@@ -1,0 +1,8 @@
+{
+  "name": "blockchain-kyc-dapp",
+  "private": true,
+  "description": "Monorepo root — run scripts from contracts/, client/, server/",
+  "scripts": {
+    "deploy:contracts": "node scripts/deploy.js --network sepolia"
+  }
+}
