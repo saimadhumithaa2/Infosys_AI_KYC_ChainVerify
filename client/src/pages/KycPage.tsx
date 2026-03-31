@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Contract } from "ethers";
 import { KYC_PLATFORM_ABI } from "@/lib/abi";
 import { apiUrl } from "@/lib/constants";
+import { ensureSepoliaOrThrow } from "@/lib/chain";
 import { hashMetadata } from "@/lib/hash";
 import { notifyTxError, notifyTxSubmitted } from "@/lib/txToast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,6 +54,7 @@ export function KycPage() {
 
     setLoading(true);
     try {
+      await ensureSepoliaOrThrow(true);
       const ipfsCid = await uploadToIpfs();
       const meta = hashMetadata({
         identifier: id,

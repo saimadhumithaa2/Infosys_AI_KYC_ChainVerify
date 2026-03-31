@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Contract } from "ethers";
 import { KYC_PLATFORM_ABI } from "@/lib/abi";
+import { ensureSepoliaOrThrow } from "@/lib/chain";
 import { notifyTxError, notifyTxSubmitted } from "@/lib/txToast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,10 @@ export function AdminPage() {
 
   async function setIssuer() {
     if (!provider || !contractAddr) return;
+    if (wrongNetwork) {
+      notifyTxError(new Error("Switch to Sepolia"));
+      return;
+    }
     if (!isOwner) {
       notifyTxError(new Error("Only contract owner can set issuers"));
       return;
@@ -28,6 +33,7 @@ export function AdminPage() {
     }
     setLoading(true);
     try {
+      await ensureSepoliaOrThrow(true);
       const signer = await provider.getSigner();
       const c = new Contract(contractAddr, KYC_PLATFORM_ABI, signer);
       const tx = await c.setIssuer(addr.trim(), active);

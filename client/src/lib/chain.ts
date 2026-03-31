@@ -31,3 +31,26 @@ export async function switchToSepolia() {
     throw e;
   }
 }
+
+export async function getCurrentChainId() {
+  const eth = window.ethereum;
+  if (!eth) return null;
+  const chainHex = (await eth.request({ method: "eth_chainId" })) as string;
+  return BigInt(chainHex);
+}
+
+/**
+ * Strict preflight: verify chain from wallet RPC right before tx.
+ * This avoids stale UI state and prevents accidental sends to localhost.
+ */
+export async function ensureSepoliaOrThrow(autoSwitch = true) {
+  const expected = 11155111n;
+  const current = await getCurrentChainId();
+  if (current === expected) return;
+  if (autoSwitch) {
+    await switchToSepolia();
+    const afterSwitch = await getCurrentChainId();
+    if (afterSwitch === expected) return;
+  }
+  throw new Error("Wrong network. Please switch MetaMask to Sepolia.");
+}

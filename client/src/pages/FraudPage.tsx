@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Contract } from "ethers";
 import { KYC_PLATFORM_ABI } from "@/lib/abi";
 import { apiUrl } from "@/lib/constants";
+import { ensureSepoliaOrThrow } from "@/lib/chain";
 import { notifyTxError, notifyTxSubmitted } from "@/lib/txToast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,7 @@ export function FraudPage() {
 
     setLoading(true);
     try {
+      await ensureSepoliaOrThrow(true);
       const signer = await provider.getSigner();
       const c = new Contract(contractAddr, KYC_PLATFORM_ABI, signer);
       const tx = await c.reportFraud(t, score, reason.trim());

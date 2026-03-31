@@ -47,6 +47,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const resetWalletState = useCallback(() => {
+    setAccount(null);
+    setProvider(null);
+    setChainId(null);
+    setBalance(null);
+    setContract(null);
+    setIsIssuer(false);
+    setIsOwner(false);
+  }, []);
+
   const refreshRoles = useCallback(async () => {
     const addr = getContractAddress();
     if (!addr || !window.ethereum || !account) {
@@ -66,63 +76,83 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, [account]);
 
-  const connect = useCallback(async () => {
-    setError(null);
-    setConnecting(true);
-    try {
+  const syncWallet = useCallback(
+    async (requestAccounts: boolean) => {
       const eth = window.ethereum;
       if (!eth) {
         setError("Install MetaMask to use this DApp.");
+        resetWalletState();
         return;
       }
+
       const p = new BrowserProvider(eth as Eip1193Provider);
-      const accs = await eth.request({ method: "eth_requestAccounts" });
-      const addr = (accs as string[])[0] ?? null;
+      const method = requestAccounts ? "eth_requestAccounts" : "eth_accounts";
+      const accs = (await eth.request({ method })) as string[];
+      const addr = accs[0] ?? null;
+
+      if (!addr) {
+        setError(requestAccounts ? "MetaMask connection was not approved." : null);
+        resetWalletState();
+        return;
+      }
+
       setAccount(addr);
       setProvider(p);
 
       const net = await p.getNetwork();
       setChainId(net.chainId);
 
-      if (addr) {
-        const bal = await p.getBalance(addr);
-        setBalance(formatEther(bal));
-      }
+      const bal = await p.getBalance(addr);
+      setBalance(formatEther(bal));
 
       const cAddr = getContractAddress();
-      if (cAddr && addr) {
-        setContract(new Contract(cAddr, KYC_PLATFORM_ABI, p));
-      } else {
-        setContract(null);
-      }
+      setContract(cAddr ? new Contract(cAddr, KYC_PLATFORM_ABI, p) : null);
+      setError(null);
+    },
+    [resetWalletState]
+  );
 
-      await refreshRoles();
+  const connect = useCallback(async () => {
+    setConnecting(true);
+    try {
+      await syncWallet(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Connection failed");
+      resetWalletState();
     } finally {
       setConnecting(false);
     }
-  }, [refreshRoles]);
+  }, [resetWalletState, syncWallet]);
+
+  useEffect(() => {
+    syncWallet(false).catch(() => {});
+  }, [syncWallet]);
 
   useEffect(() => {
     const eth = window.ethereum;
     if (!eth) return;
 
-    const onAccounts = (...args: unknown[]) => {
-      const accs = args[0] as string[];
-      setAccount(accs[0] ?? null);
+    const onAccounts = () => {
+      syncWallet(false).catch(() => {
+        resetWalletState();
+      });
     };
     const onChain = () => {
-      connect().catch(() => {});
+      syncWallet(false).catch(() => {});
+    };
+    const onDisconnect = () => {
+      resetWalletState();
     };
 
     eth.on?.("accountsChanged", onAccounts);
     eth.on?.("chainChanged", onChain);
+    eth.on?.("disconnect", onDisconnect);
     return () => {
       eth.removeListener?.("accountsChanged", onAccounts);
       eth.removeListener?.("chainChanged", onChain);
+      eth.removeListener?.("disconnect", onDisconnect);
     };
-  }, [connect]);
+  }, [resetWalletState, syncWallet]);
 
   useEffect(() => {
     if (account && provider) {
@@ -131,10 +161,15 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, [account, provider]);
 
   useEffect(() => {
-    refreshRoles();
-  }, [refreshRoles]);
+    if (account) {
+      refreshRoles();
+      return;
+    }
+    setIsIssuer(false);
+    setIsOwner(false);
+  }, [account, refreshRoles]);
 
-  const wrongNetwork = false;
+  const wrongNetwork = chainId !== null && chainId !== SEPOLIA_CHAIN_ID;
 
   const value = useMemo(
     () => ({

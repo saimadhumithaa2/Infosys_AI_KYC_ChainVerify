@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Contract } from "ethers";
 import { KYC_PLATFORM_ABI } from "@/lib/abi";
 import { apiUrl } from "@/lib/constants";
+import { ensureSepoliaOrThrow } from "@/lib/chain";
 import { notifyTxError, notifyTxSubmitted } from "@/lib/txToast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,7 @@ export function GovernancePage() {
 
     setSubmitting(true);
     try {
+      await ensureSepoliaOrThrow(true);
       const signer = await provider.getSigner();
       const c = new Contract(contractAddr, KYC_PLATFORM_ABI, signer);
       const tx = await c.submitProposal(desc.trim(), target.trim(), addIssuer);
@@ -122,7 +124,12 @@ export function GovernancePage() {
 
   async function vote(id: number, approve: boolean) {
     if (!provider || !contractAddr) return;
+    if (wrongNetwork) {
+      notifyTxError(new Error("Switch to Sepolia"));
+      return;
+    }
     try {
+      await ensureSepoliaOrThrow(true);
       const signer = await provider.getSigner();
       const c = new Contract(contractAddr, KYC_PLATFORM_ABI, signer);
       const tx = await c.voteProposal(id, approve);
@@ -136,7 +143,12 @@ export function GovernancePage() {
 
   async function execute(id: number) {
     if (!provider || !contractAddr) return;
+    if (wrongNetwork) {
+      notifyTxError(new Error("Switch to Sepolia"));
+      return;
+    }
     try {
+      await ensureSepoliaOrThrow(true);
       const signer = await provider.getSigner();
       const c = new Contract(contractAddr, KYC_PLATFORM_ABI, signer);
       const tx = await c.executeProposal(id);

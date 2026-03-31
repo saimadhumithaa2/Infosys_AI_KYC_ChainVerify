@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Wallet, LayoutDashboard, Shield, AlertTriangle, Vote, Settings } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/context/WalletContext";
 import { switchToSepolia } from "@/lib/chain";
@@ -20,6 +22,41 @@ export function Layout() {
   const loc = useLocation();
   const { account, balance, connect, connecting, wrongNetwork, chainId, isOwner } = useWallet();
   const block = useBlockNumber();
+  const [switchingNetwork, setSwitchingNetwork] = useState(false);
+  const warnedWrongNetworkRef = useRef(false);
+
+  const handleSwitchNetwork = async () => {
+    setSwitchingNetwork(true);
+    try {
+      await switchToSepolia();
+      toast.success("Switched to Sepolia");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Could not switch network";
+      toast.error("Network switch failed", { description: message });
+    } finally {
+      setSwitchingNetwork(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!account || !wrongNetwork) {
+      warnedWrongNetworkRef.current = false;
+      return;
+    }
+    if (warnedWrongNetworkRef.current) return;
+
+    warnedWrongNetworkRef.current = true;
+    toast.warning("Wrong network detected", {
+      description: "Please switch MetaMask to Sepolia to continue.",
+      action: {
+        label: "Switch now",
+        onClick: () => {
+          handleSwitchNetwork().catch(() => {});
+        },
+      },
+      duration: 10000,
+    });
+  }, [account, wrongNetwork]);
 
   return (
     <div className="mesh-bg min-h-screen text-white">
@@ -52,8 +89,13 @@ export function Layout() {
               </span>
             )}
             {wrongNetwork && (
-              <Button size="sm" variant="outline" onClick={() => switchToSepolia().catch(console.error)}>
-                Switch to Sepolia
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={switchingNetwork}
+                onClick={() => handleSwitchNetwork().catch(() => {})}
+              >
+                {switchingNetwork ? "Switching…" : "Switch to Sepolia"}
               </Button>
             )}
             {account ? (
